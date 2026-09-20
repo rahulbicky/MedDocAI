@@ -1,0 +1,9 @@
+.env
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.egg-info/
+research/
+.dockerignore
+Dockerfile

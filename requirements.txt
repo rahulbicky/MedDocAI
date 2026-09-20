@@ -2,6 +2,7 @@
 langchain==0.3.26
 langchain-community==0.3.26
 langchain-core==0.3.66
+langchain-text-splitters==0.3.8
 
 # LLM & Vector Store Integrations
 langchain-groq==0.2.1
@@ -17,18 +18,18 @@ sentence-transformers==3.3.1
 # Document Processing
 pypdf==5.1.0
 
-# Web Framework
+# Web Framework (optional JSON API, see app.py / README)
 flask==3.1.1
+
+# Frontend
+streamlit==1.64.0
 
 # Environment Variables
 python-dotenv==1.1.0
 
-# Additional Dependencies
+# Additional Dependencies (transitive requirements of the packages above)
 tiktoken==0.8.0
 huggingface-hub==0.26.2
 
-
-streamlit
-
-# Local package
+# Local package (src/)
 -e .

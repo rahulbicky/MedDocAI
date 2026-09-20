@@ -1,14 +1,22 @@
+import html
+import os
+from datetime import datetime
+
 import streamlit as st
-from src.helper import download_hugging_face_embeddings
-from langchain_pinecone import PineconeVectorStore
-from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+from langchain_pinecone import PineconeVectorStore
+
+from src.helper import (
+    GROQ_MODEL_NAME,
+    PINECONE_INDEX_NAME,
+    RETRIEVER_TOP_K,
+    download_hugging_face_embeddings,
+)
 from src.prompt import system_prompt
-import os
-from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -156,18 +164,33 @@ if 'messages' not in st.session_state:
 if 'suggested_clicked' not in st.session_state:
     st.session_state.suggested_clicked = False
 
+class ConfigError(Exception):
+    """Raised when required configuration is missing or the index isn't ready."""
+
+
 # Initialize chatbot
 @st.cache_resource
 def initialize_chatbot():
+    if not PINECONE_API_KEY:
+        raise ConfigError("Missing PINECONE_API_KEY. Please add it to your .env file (see .env.example).")
+    if not GROQ_API_KEY:
+        raise ConfigError("Missing GROQ_API_KEY. Please add it to your .env file (see .env.example).")
+
     embeddings = download_hugging_face_embeddings()
-    index_name = "medical-queryai"
-    docsearch = PineconeVectorStore.from_existing_index(
-        index_name=index_name,
-        embedding=embeddings
-    )
-    retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    try:
+        docsearch = PineconeVectorStore.from_existing_index(
+            index_name=PINECONE_INDEX_NAME,
+            embedding=embeddings
+        )
+    except Exception as exc:
+        raise ConfigError(
+            f"Could not connect to the Pinecone index '{PINECONE_INDEX_NAME}'. "
+            "If you haven't indexed any documents yet, run 'python store_index.py' first."
+        ) from exc
+
+    retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": RETRIEVER_TOP_K})
     chatModel = ChatGroq(
-        model_name="llama-3.3-70b-versatile",
+        model_name=GROQ_MODEL_NAME,
         groq_api_key=GROQ_API_KEY
     )
     prompt = ChatPromptTemplate.from_messages([
@@ -227,6 +250,9 @@ with st.sidebar:
 try:
     rag_chain = initialize_chatbot()
     chatbot_ready = True
+except ConfigError as e:
+    st.error(f"⚠️ {str(e)}")
+    chatbot_ready = False
 except Exception as e:
     st.error(f"⚠️ Error initializing chatbot: {str(e)}")
     chatbot_ready = False
@@ -245,11 +271,12 @@ with chat_container:
         """, unsafe_allow_html=True)
     
     for message in st.session_state.messages:
+        safe_content = html.escape(message["content"]).replace("\n", "<br>")
         if message["role"] == "user":
             st.markdown(f"""
             <div class="user-message">
                 <strong>You</strong><br>
-                {message["content"]}
+                {safe_content}
                 <div class="timestamp"> {message["timestamp"]}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -257,7 +284,7 @@ with chat_container:
             st.markdown(f"""
             <div class="bot-message">
                 <strong>🤖 MedQuery AI</strong><br>
-                {message["content"]}
+                {safe_content}
                 <div class="timestamp"> {message["timestamp"]}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -290,7 +317,8 @@ if chatbot_ready and user_input:
                 "timestamp": timestamp
             })
         except Exception as e:
-            st.error(f" Error: {str(e)}")
+            print(f"[MedQuery AI] Error answering question: {e}")  # server-side log only
+            st.error("⚠️ Something went wrong while answering your question. Please try again.")
             bot_response = "I apologize, but I encountered an error. Please try rephrasing your question."
             st.session_state.messages.append({
                 "role": "assistant",
