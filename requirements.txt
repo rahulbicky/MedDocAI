@@ -6,11 +6,11 @@ langchain-text-splitters==0.3.8
 
 # LLM & Vector Store Integrations
 langchain-groq==0.2.1
-langchain-pinecone==0.2.0
+langchain-pinecone==0.2.13
 langchain-huggingface==0.1.2
 
 # Pinecone Vector Database
-pinecone-client==5.0.1
+pinecone==6.0.2
 
 # Embeddings
 sentence-transformers==3.3.1
